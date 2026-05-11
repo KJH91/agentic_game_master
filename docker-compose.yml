@@ -1,0 +1,41 @@
+services:
+  gamemaster:
+    build: .
+    container_name: ai-game-master
+    ports:
+      - "8502:8502"
+    volumes:
+      - saves_data:/saves
+      - ./app:/app          # live-reload during development
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - stable-diffusion    # start SD first, but don't wait for healthy (game works without it)
+
+  stable-diffusion:
+    build: ./stable-diffusion
+    container_name: sd-server
+    ports:
+      - "7860:7860"
+    volumes:
+      - sd_model_cache:/model-cache
+    environment:
+      - SD_MODEL=runwayml/stable-diffusion-v1-5
+    restart: unless-stopped
+    # Uncomment the section below if you have an NVIDIA GPU + Container Toolkit installed:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  saves_data:
+    driver: local
+  sd_model_cache:
+    driver: local
