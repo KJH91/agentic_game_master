@@ -1,4 +1,6 @@
 import base64
+import json
+import os
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -128,6 +130,29 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ── Persistent settings ───────────────────────────────────────────────────────
+_SETTINGS_FILE = "/saves/settings.json"
+_SETTINGS_KEYS = ["voice_enabled", "voice_name", "sound_enabled", "image_enabled"]
+
+
+def _load_settings() -> dict:
+    try:
+        with open(_SETTINGS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_settings():
+    os.makedirs("/saves", exist_ok=True)
+    data = {k: st.session_state.get(k) for k in _SETTINGS_KEYS}
+    try:
+        with open(_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
 # ── Session state ─────────────────────────────────────────────────────────────
 def _init():
     defaults = {
@@ -137,7 +162,7 @@ def _init():
         "game_state":           None,
         "chat_log":             [],
         "waiting_for_response": False,
-        # Feature flags
+        # Feature flags (defaults — overridden by saved settings below)
         "voice_enabled":        False,
         "voice_name":           list(VOICES.keys())[0],
         "sound_enabled":        True,
@@ -154,6 +179,13 @@ def _init():
         "mp_player_name":       None,
         "mp_last_ts":           0.0,
     }
+
+    # Overlay persisted settings so they survive page refreshes
+    saved = _load_settings()
+    for k in _SETTINGS_KEYS:
+        if k in saved:
+            defaults[k] = saved[k]
+
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
@@ -334,6 +366,19 @@ def render_sidebar():
             with st.expander("🗺️ World Map", expanded=len(state.get("map", {}).get("nodes", {})) > 1):
                 st.image(map_img, use_container_width=True)
 
+        # Combat enemies
+        if state["combat"]["in_combat"]:
+            st.divider()
+            st.markdown("**⚔️ Enemies**")
+            for enemy in state["combat"]["enemies"]:
+                hp = enemy.get("health", 0)
+                max_hp = enemy.get("max_health", hp)
+                if hp > 0:
+                    st.markdown(f"**{enemy['name']}**")
+                    st.progress(hp / max(max_hp, 1), text=f"{hp}/{max_hp} HP")
+                else:
+                    st.caption(f"~~{enemy['name']}~~ ☠️")
+
         st.divider()
 
         # Location / time
@@ -361,6 +406,7 @@ def render_sidebar():
                     st.info("⏳ Model loading — images available shortly")
                 else:
                     st.warning("SD container not reachable")
+            _save_settings()
 
         st.divider()
 
@@ -733,7 +779,16 @@ def screen_game():
                     unsafe_allow_html=True)
 
     if state["combat"]["in_combat"]:
-        st.warning(f"⚔️ **COMBAT** — Round {state['combat']['round']}")
+        combat = state["combat"]
+        living_enemies = [e for e in combat["enemies"] if e.get("health", 0) > 0]
+        st.error(f"⚔️ **COMBAT — Round {combat['round']}**", icon="⚔️")
+        cols = st.columns(len(living_enemies)) if living_enemies else []
+        for col, enemy in zip(cols, living_enemies):
+            hp = enemy["health"]
+            max_hp = enemy.get("max_health", hp)
+            col.markdown(f"**{enemy['name']}**")
+            col.progress(hp / max(max_hp, 1), text=f"{hp}/{max_hp} HP")
+        st.caption("⚔️ Attack · 🔮 Cast a spell · 🏃 Flee — type your action below")
 
     if st.session_state.mp_active:
         players = state.get("multiplayer", {}).get("players", [])
@@ -812,7 +867,7 @@ def screen_game():
             st.markdown(f'<div class="dice-display">{text.replace(chr(10),"<br>")}</div>',
                         unsafe_allow_html=True)
         elif t == "notice":
-            st.markdown(f'<div class="notice-box">{text}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="notice-box">{text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
         elif t == "level_up":
             st.markdown(f'<div class="level-up-banner">🎉 {text} 🎉</div>', unsafe_allow_html=True)
         elif t == "image":
@@ -861,11 +916,7 @@ def _process_pending_action():
 
     st.session_state.game_state = new_state
 
-    # Dice
-    if dice_display:
-        push("dice", dice_display)
-
-    # Notices + sounds
+    # Notices + sounds (pushed first → appear lowest in the reversed chat block)
     for notice in notices:
         if "LEVEL UP" in notice:
             push("level_up", notice)
@@ -891,8 +942,12 @@ def _process_pending_action():
         if img_bytes:
             push("image", base64.b64encode(img_bytes).decode())
 
-    # GM narrative
+    # GM narrative (pushed second → appears above notices)
     push("gm", narrative)
+
+    # Dice pushed last → appears at the very top of this round's block, right below the input
+    if dice_display:
+        push("dice", dice_display)
 
     # Voice
     if st.session_state.voice_enabled:

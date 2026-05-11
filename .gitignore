@@ -32,6 +32,10 @@ desktop.ini
 *.swp
 *.swo
 
+# Local AI assistant context files — not for version control
+CLAUDE.md
+.claude/
+
 # Jupyter
 .ipynb_checkpoints/
 

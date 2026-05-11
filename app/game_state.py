@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import datetime
 
 from map_system import init_map, add_location
+from dice import roll_initiative, stat_modifier
 
 SAVES_DIR = "/saves"
 
@@ -362,6 +363,42 @@ def apply_state_update(game_state: dict, update_text: str) -> tuple[dict, list[s
         flag = parsed["story_flag"]
         if isinstance(flag, dict):
             state["story_flags"][flag["key"]] = flag["value"]
+
+    if "combat_start" in parsed:
+        enemies = parsed["combat_start"]
+        if isinstance(enemies, list) and enemies:
+            player = state["player"]
+            for enemy in enemies:
+                if "max_health" not in enemy:
+                    enemy["max_health"] = enemy.get("health", 10)
+
+            dex_mod = stat_modifier(player["stats"]["dexterity"])
+            player_init = roll_initiative(dex_mod)
+            initiative_order = [{"name": player["name"], "initiative": player_init, "is_player": True}]
+            for enemy in enemies:
+                e_init = roll_initiative(0)
+                enemy["initiative"] = e_init
+                initiative_order.append({"name": enemy["name"], "initiative": e_init, "is_player": False})
+            initiative_order.sort(key=lambda x: x["initiative"], reverse=True)
+
+            state["combat"] = {
+                "in_combat": True,
+                "enemies": enemies,
+                "round": 1,
+                "initiative_order": initiative_order,
+            }
+
+            lines = ["⚔️ **COMBAT BEGINS!** — Initiative Order:"]
+            for idx, entry in enumerate(initiative_order):
+                marker = "→" if idx == 0 else "  "
+                lines.append(f"{marker} {entry['name']}: {entry['initiative']}")
+            notices.append("\n".join(lines))
+
+    if "combat_end" in parsed and parsed["combat_end"]:
+        state["combat"]["in_combat"] = False
+        state["combat"]["enemies"] = []
+        state["combat"]["round"] = 0
+        state["combat"]["initiative_order"] = []
 
     return state, notices
 

@@ -144,6 +144,24 @@ The more descriptive you are, the better the AI responds. For example:
 
 The Game Master will narrate what happens next. In combat, dice rolls are shown automatically so you can see exactly how outcomes were determined.
 
+**How combat works:**
+
+Combat is turn-based. When enemies appear, an initiative order is rolled and a red combat banner appears at the top of the screen showing each enemy's health bar. Each time you type an action, one full round resolves:
+
+1. Your action is resolved (attack, spell, or flee) — dice are rolled by the game engine
+2. Every surviving enemy automatically attacks back in the same round
+3. The results appear above the GM's narration so you can see exactly what happened
+
+You need to keep taking actions each round until the enemies are defeated or you successfully flee. Type things like:
+
+> *"I attack the nearest enemy with my sword."*
+
+> *"I cast a fireball at the group."*
+
+> *"I flee — I need to get out of here!"*
+
+Combat ends automatically when all enemies reach 0 HP or you escape.
+
 ---
 
 ### Saving your game
@@ -158,7 +176,7 @@ To continue a saved game, click **Load Game** from the main menu.
 
 ### Optional features
 
-These can be toggled on and off in the **⚙️ Settings** panel in the sidebar during a game:
+These can be toggled on and off in the **⚙️ Settings** panel in the sidebar during a game. Your choices are saved automatically and remembered the next time you play.
 
 | Feature | What it does |
 |---|---|
@@ -233,14 +251,16 @@ The image model downloads ~4 GB on first run. Check the terminal for download pr
 
 ## Choosing a different AI model
 
-The game uses `llama3.2` by default which is fast and capable. If you want to experiment with other models, first pull one with Ollama:
+The game uses `llama3.2` by default — it's fast, small (~2 GB), and works well on most computers. If you want to try a larger, more capable model and have a powerful machine with plenty of RAM, you can pull an alternative:
 
 ```
-ollama pull llama3.2:8b
+ollama pull mistral
 ```
 
-Then open `app/game_master.py` in a text editor, find this line near the top, and change the model name:
+Then open `app/game_master.py` in a text editor, find this line near the top, and change the model name to match:
 
 ```python
-MODEL_NAME = "llama3.2"
+MODEL_NAME = "mistral"
 ```
+
+Larger models produce richer narration but respond more slowly. Stick with `llama3.2` if responses feel too slow.

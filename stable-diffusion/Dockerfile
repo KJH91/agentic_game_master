@@ -12,8 +12,9 @@ RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu
 
 RUN pip install --no-cache-dir \
-    diffusers==0.27.2 \
-    transformers \
+    "diffusers>=0.30.0" \
+    "huggingface_hub>=0.23.0" \
+    "transformers>=4.40.0" \
     accelerate \
     fastapi \
     "uvicorn[standard]" \
